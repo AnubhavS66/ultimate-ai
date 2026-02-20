@@ -1,0 +1,272 @@
+import os
+import json
+import datetime
+import subprocess
+
+# =========================
+# MEMORY SYSTEM
+# =========================
+
+MEMORY_FILE = "ai_memory.json"
+
+def load_memory():
+    if os.path.exists(MEMORY_FILE):
+        with open(MEMORY_FILE, "r") as f:
+            return json.load(f)
+    return {
+        "history": [],
+        "learned": {}
+    }
+
+def save_memory():
+    with open(MEMORY_FILE, "w") as f:
+        json.dump(memory, f, indent=4)
+
+memory = load_memory()
+
+# =========================
+# FILE SYSTEM CONTROL
+# =========================
+
+def create_file(name, content=""):
+    with open(name, "w") as f:
+        f.write(content)
+    return f"{name} created"
+
+def read_file(name):
+    try:
+        with open(name, "r", errors="ignore") as f:
+            return f.read()
+    except:
+        return "File not found"
+
+def write_file(name, content):
+    with open(name, "w") as f:
+        f.write(content)
+    return f"{name} written"
+
+# =========================
+# WEBSITE GENERATOR
+# =========================
+
+def create_website():
+
+    code = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<title>My AI Company</title>
+<style>
+body {{
+background:black;
+color:white;
+text-align:center;
+font-family:Arial;
+}}
+</style>
+</head>
+<body>
+
+<h1>AI Generated Website</h1>
+<p>Created: {datetime.datetime.now()}</p>
+
+</body>
+</html>
+"""
+
+    write_file("index.html", code)
+
+    return "Website created"
+
+# =========================
+# GAME GENERATOR
+# =========================
+
+def create_game():
+
+    code = """
+import pygame
+
+pygame.init()
+
+screen = pygame.display.set_mode((800,600))
+
+x = 100
+y = 100
+
+running = True
+
+while running:
+
+    screen.fill((0,0,0))
+
+    pygame.draw.rect(screen,(255,0,0),(x,y,50,50))
+
+    for event in pygame.event.get():
+
+        if event.type == pygame.QUIT:
+            running = False
+
+    pygame.display.update()
+
+pygame.quit()
+"""
+
+    write_file("game.py", code)
+
+    return "Game created (run game.py)"
+
+# =========================
+# PYTHON CODE GENERATOR
+# =========================
+
+def create_python_program(name):
+
+    code = f"""
+print("Program: {name}")
+print("Created by Ultimate AI")
+"""
+
+    write_file(name + ".py", code)
+
+    return f"{name}.py created"
+
+# =========================
+# SECURITY SCANNER
+# =========================
+
+def security_scan():
+
+    issues = []
+
+    for file in os.listdir():
+
+        if file.endswith(".py") or file.endswith(".html"):
+
+            content = read_file(file)
+
+            if "password" in content.lower():
+                issues.append(file)
+
+    if issues:
+        return "Security risk: " + str(issues)
+
+    return "System secure"
+
+# =========================
+# COMMAND EXECUTOR
+# =========================
+
+def run_system_command(cmd):
+
+    try:
+
+        result = subprocess.getoutput(cmd)
+
+        return result
+
+    except:
+
+        return "Command failed"
+
+# =========================
+# LEARNING SYSTEM
+# =========================
+
+def learn(command, response):
+
+    memory["learned"][command] = response
+
+    save_memory()
+
+    return "Learned"
+
+# =========================
+# AI BRAIN
+# =========================
+
+def brain(user_input):
+
+    user_input = user_input.lower()
+
+    memory["history"].append(user_input)
+
+    save_memory()
+
+    if user_input in memory["learned"]:
+        return memory["learned"][user_input]
+
+    if user_input == "create website":
+        return create_website()
+
+    elif user_input == "create game":
+        return create_game()
+
+    elif user_input.startswith("create python"):
+        name = user_input.replace("create python ", "")
+        return create_python_program(name)
+
+    elif user_input == "security scan":
+        return security_scan()
+
+    elif user_input.startswith("run"):
+        cmd = user_input.replace("run ", "")
+        return run_system_command(cmd)
+
+    elif user_input.startswith("learn"):
+
+        try:
+
+            parts = user_input.split("=")
+
+            command = parts[0].replace("learn ", "").strip()
+
+            response = parts[1].strip()
+
+            return learn(command, response)
+
+        except:
+            return "Learn format error"
+
+    elif user_input == "files":
+        return str(os.listdir())
+
+    elif user_input == "memory":
+        return str(memory)
+
+    elif user_input == "time":
+        return str(datetime.datetime.now())
+
+    elif user_input == "help":
+
+        return """
+create website
+create game
+create python test
+security scan
+run dir
+learn hello = hi
+files
+memory
+time
+exit
+"""
+
+    return "Ultimate AI ready"
+
+# =========================
+# MAIN LOOP
+# =========================
+
+print("Ultimate AI Started")
+
+while True:
+
+    user = input("\nYou: ")
+
+    if user == "exit":
+        break
+
+    response = brain(user)
+
+    print("AI:", response)
