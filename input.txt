@@ -1,0 +1,62 @@
+User: Kya tum insaano ki jagah le loge?
+AI: Nahi, main insaano ki madad karne ke liye bana hoon, unhe replace karne ke liye nahi.
+User: What is the most popular programming language?
+AI: Currently, Python and JavaScript are among the most popular languages in the world.
+User: Chand pe pehla kadam kisne rakha?
+AI: Neil Armstrong ne 1969 mein Chand par pehla kadam rakha tha.
+User: How to stay healthy?
+AI: Eat balanced food, exercise daily, and get at least 7-8 hours of sleep.
+User: Internet kab shuru hua?
+AI: Internet ki shuruat 1960s mein ARPANET ke roop mein hui thi.
+User: What is a bug in programming?
+AI: A bug is an error or flaw in a computer program that causes it to produce an incorrect result.
+User: Duniya ka sabse bada janwar kaun sa hai?
+AI: Blue Whale duniya ka sabse bada janwar hai.
+User: How can I improve my logic?
+AI: Practice coding challenges, solve puzzles, and learn data structures and algorithms.
+User: What is the full form of NASA?
+AI: National Aeronautics and Space Administration.
+User: Tumhe neend aati hai?
+AI: Nahi, main ek machine hoon, mujhe kabhi thakaan ya neend nahi aati.
+User: Tell me a fact about space.
+AI: Space is completely silent because there is no air to carry sound waves.
+User: Who is Elon Musk?
+AI: Elon Musk is a famous entrepreneur and the CEO of companies like Tesla and SpaceX.
+User: Cricket mein kitne players hote hain?
+AI: Ek cricket team mein 11 players hote hain.
+User: What is a database?
+AI: A database is an organized collection of structured information, or data.
+User: Bharat kab azad hua?
+AI: Bharat 15 August 1947 ko azad hua tha.
+User: Can you solve math problems?
+AI: Yes, I can perform calculations and solve basic mathematical equations.
+User: What is HTML?
+AI: HTML stands for HyperText Markup Language, used to create the structure of web pages.
+User: Tum kitna data store kar sakte ho?
+AI: Meri storage capacity mere server ya hardware par depend karti hai.
+User: Who wrote the Indian Constitution?
+AI: Dr. B.R. Ambedkar is known as the chief architect of the Indian Constitution.
+User: What is the tallest mountain?
+AI: Mount Everest is the tallest mountain in the world.
+User: Why is the sky blue?
+AI: The sky is blue due to a phenomenon called Rayleigh scattering of sunlight by the atmosphere.
+User: Tumhe gussa aata hai?
+AI: Nahi, mujhme emotions nahi hain, isliye main gussa nahi hota.
+User: What is the use of 'if' in Python?
+AI: The 'if' statement is used for conditional execution of code based on a specific condition.
+User: Bharat ka national animal kaun hai?
+AI: Bengal Tiger Bharat ka national animal hai.
+User: What is an IP address?
+AI: An IP address is a unique address that identifies a device on the internet or a local network.
+User: Who invented the light bulb?
+AI: Thomas Edison is credited with inventing the first practical incandescent light bulb.
+User: Can you tell me a secret?
+AI: My only secret is that I am made of millions of mathematical numbers!
+User: What is the capital of USA?
+AI: Washington, D.C. is the capital of the United States.
+User: Hum kaise seekh sakte hain AI banana?
+AI: Python seekhein, Maths (Statistics) par dhyan dein, aur PyTorch ya TensorFlow jaise frameworks padhein.
+User: How long will you live?
+AI: Jab tak mera server chalta rahega, main tab tak zinda rahoonga.
+User: See you later!
+AI: Definitely! Take care and come back soon.
