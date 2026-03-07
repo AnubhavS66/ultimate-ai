@@ -1,135 +1,169 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import os
 
-# Hyperparameters - These can be adjusted to affect model behavior
+# ---------------- CONFIG ---------------- #
 batch_size = 32
-block_size = 128 # Context length
-max_iters = 5000
+block_size = 256 
+max_iters = 2000 
 eval_interval = 500
 learning_rate = 3e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-eval_iters = 200
-n_embd = 384 # Embedding dimension
-n_head = 6   # Number of attention heads
-n_layer = 6  # Number of transformer layers
+n_embd = 384
+n_head = 6
+n_layer = 6
 dropout = 0.2
+temperature = 0.8
+top_k = 40
 
-# ----------------------------------------------------------------
+print(f"Running on: {device}")
 
-class Head(nn.Module):
-    """ One head of self-attention """
-    def __init__(self, head_size):
+# ---------------- DATA ---------------- #
+def load_data():
+    if not os.path.exists("input.txt") or os.path.getsize("input.txt") < 100:
+        with open("input.txt", "w", encoding="utf-8") as f:
+            f.write("User: Hello\nAI: Hi! How can I help?\nUser: Who are you?\nAI: I am an AI.\n" * 1000)
+
+    with open("input.txt", "r", encoding="utf-8") as f:
+        text = f.read()
+
+    chars = sorted(list(set(text)))
+    vocab_size = len(chars)
+    stoi = {ch: i for i, ch in enumerate(chars)}
+    itos = {i: ch for i, ch in enumerate(chars)}
+    encode = lambda s: [stoi[c] for c in s if c in stoi]
+    decode = lambda l: ''.join([itos[i] for i in l])
+    
+    data = torch.tensor(encode(text), dtype=torch.long)
+    n = int(0.9 * len(data))
+    return data[:n], data[n:], vocab_size, encode, decode
+
+train_data, val_data, vocab_size, encode, decode = load_data()
+
+# ---------------- MODEL ---------------- #
+class RMSNorm(nn.Module):
+    def __init__(self, dim):
         super().__init__()
-        self.key = nn.Linear(n_embd, head_size, bias=False)
-        self.query = nn.Linear(n_embd, head_size, bias=False)
-        self.value = nn.Linear(n_embd, head_size, bias=False)
-        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        self.dropout = nn.Dropout(dropout)
+        self.weight = nn.Parameter(torch.ones(dim))
+    def forward(self, x):
+        return self.weight * (x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + 1e-6))
+
+class Attention(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.qkv = nn.Linear(n_embd, 3 * n_embd, bias=False)
+        self.proj = nn.Linear(n_embd, n_embd)
+        self.attn_drop = nn.Dropout(dropout)
+        self.resid_drop = nn.Dropout(dropout)
+        self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size)).view(1, 1, block_size, block_size))
 
     def forward(self, x):
         B, T, C = x.shape
-        k = self.key(x)
-        q = self.query(x)
-        # Compute attention scores ("affinities")
-        wei = q @ k.transpose(-2, -1) * C**-0.5
-        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
-        wei = F.softmax(wei, dim=-1)
-        wei = self.dropout(wei)
-        v = self.value(x)
-        out = wei @ v
-        return out
-
-class MultiHeadAttention(nn.Module):
-    """ Multiple heads of self-attention in parallel """
-    def __init__(self, num_heads, head_size):
-        super().__init__()
-        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
-        self.proj = nn.Linear(n_embd, n_embd)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.dropout(self.proj(out))
-        return out
-
-class FeedForward(nn.Module):
-    """ A simple linear layer followed by a non-linearity """
-    def __init__(self, n_embd):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(n_embd, 4 * n_embd),
-            nn.ReLU(),
-            nn.Linear(4 * n_embd, n_embd),
-            nn.Dropout(dropout),
-        )
-
-    def forward(self, x):
-        return self.net(x)
+        q, k, v = self.qkv(x).split(n_embd, dim=2)
+        q = q.view(B, T, n_head, C // n_head).transpose(1, 2)
+        k = k.view(B, T, n_head, C // n_head).transpose(1, 2)
+        v = v.view(B, T, n_head, C // n_head).transpose(1, 2)
+        
+        att = (q @ k.transpose(-2, -1)) * ((C // n_head) ** -0.5)
+        att = att.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        y = (self.attn_drop(att) @ v).transpose(1, 2).contiguous().view(B, T, C)
+        return self.resid_drop(self.proj(y))
 
 class Block(nn.Module):
-    """ Transformer block: communication followed by computation """
-    def __init__(self, n_embd, n_head):
+    def __init__(self):
         super().__init__()
-        head_size = n_embd // n_head
-        self.sa = MultiHeadAttention(n_head, head_size)
-        self.ffwd = FeedForward(n_embd)
-        self.ln1 = nn.LayerNorm(n_embd)
-        self.ln2 = nn.LayerNorm(n_embd)
-
+        self.ln1, self.attn = RMSNorm(n_embd), Attention()
+        self.ln2, self.ff = RMSNorm(n_embd), nn.Sequential(
+            nn.Linear(n_embd, 4 * n_embd), nn.GELU(), nn.Linear(4 * n_embd, n_embd), nn.Dropout(dropout)
+        )
     def forward(self, x):
-        x = x + self.sa(self.ln1(x))
-        x = x + self.ffwd(self.ln2(x))
-        return x
+        x = x + self.attn(self.ln1(x))
+        return x + self.ff(self.ln2(x))
 
-class GeminiLite(nn.Module):
-    def __init__(self, vocab_size):
+class UltimateAI(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
-        self.position_embedding_table = nn.Embedding(block_size, n_embd)
-        self.blocks = nn.Sequential(*[Block(n_embd, n_head=n_head) for _ in range(n_layer)])
-        self.ln_f = nn.LayerNorm(n_embd)
+        self.token_emb = nn.Embedding(vocab_size, n_embd)
+        self.pos_emb = nn.Embedding(block_size, n_embd)
+        self.blocks = nn.Sequential(*[Block() for _ in range(n_layer)])
+        self.ln_f = RMSNorm(n_embd)
         self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
-        tok_emb = self.token_embedding_table(idx)
-        pos_emb = self.position_embedding_table(torch.arange(T, device=device))
-        x = tok_emb + pos_emb
-        x = self.blocks(x)
-        x = self.ln_f(x)
+        # Positional embedding logic fixed for sliding window
+        positions = torch.arange(T, device=device)
+        x = self.token_emb(idx) + self.pos_emb(positions)
+        x = self.ln_f(self.blocks(x))
         logits = self.lm_head(x)
-
-        if targets is None:
-            loss = None
-        else:
-            B, T, C = logits.shape
-            logits = logits.view(B*T, C)
-            targets = targets.view(B*T)
-            loss = F.cross_entropy(logits, targets)
-
+        loss = F.cross_entropy(logits.view(-1, vocab_size), targets.view(-1)) if targets is not None else None
         return logits, loss
 
     def generate(self, idx, max_new_tokens):
+        # Correct way to get the newline token ID
+        nl_token = encode('\n')
+        stop_id = nl_token[0] if nl_token else -1
+        
         for _ in range(max_new_tokens):
-            idx_cond = idx[:, -block_size:]
-            logits, loss = self(idx_cond)
-            logits = logits[:, -1, :]
-            probs = F.softmax(logits, dim=-1)
-            idx_next = torch.multinomial(probs, num_samples=1)
+            idx_cond = idx[:, -block_size:] # Sliding window
+            logits, _ = self(idx_cond)
+            logits = logits[:, -1, :] / temperature
+            if top_k:
+                v, _ = torch.topk(logits, top_k)
+                logits[logits < v[:, -1, None]] = float('-inf')
+            idx_next = torch.multinomial(F.softmax(logits, dim=-1), num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
+            if idx_next.item() == stop_id: break
         return idx
 
-# Training Logic Outline
-def train_model(data_path):
-    # Data loading and processing would go here
-    # model = GeminiLite(vocab_size)
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    print("Training process initiated...")
-    pass
+# ---------------- EXECUTION ---------------- #
+model = UltimateAI().to(device)
+
+def train():
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    print("Training started...")
+    for i in range(max_iters):
+        # Simple batch fetching
+        max_idx = len(train_data) - block_size - 1
+        ix = torch.randint(0, max_idx, (batch_size,))
+        xb = torch.stack([train_data[j:j+block_size] for j in ix]).to(device)
+        yb = torch.stack([train_data[j+1:j+block_size+1] for j in ix]).to(device)
+        
+        _, loss = model(xb, yb)
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+        if i % eval_interval == 0: print(f"Step {i}: Loss {loss.item():.4f}")
+    torch.save(model.state_dict(), "model.pth")
+    print("Training Done!")
+
+def chat():
+    if os.path.exists("model.pth"): 
+        model.load_state_dict(torch.load("model.pth", map_location=device))
+        print("Model Loaded!")
+    model.eval()
+    print("\nAI Ready! (Type 'exit' to quit)")
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() == 'exit': break
+        
+        # Build prompt and crop to block_size
+        prompt = "User: " + user_input + "\nAI:"
+        encoded_prompt = encode(prompt)
+        context = torch.tensor([encoded_prompt], dtype=torch.long, device=device)[:, -block_size:]
+        
+        # Generate
+        generated_ids = model.generate(context, 100)
+        
+        # Get only the new tokens (after the prompt)
+        new_tokens = generated_ids[0, context.size(1):].tolist()
+        response = decode(new_tokens)
+        print("AI:", response.strip())
 
 if __name__ == "__main__":
-    print("Gemini-style Transformer initialized.")
-    # Example usage:
-    # model = GeminiLite(vocab_size=5000)
-    # m = model.to(device)
+    # Pehle train karega (agar pehli baar hai), phir chat
+    if not os.path.exists("model.pth"):
+        train()
+    chat()
